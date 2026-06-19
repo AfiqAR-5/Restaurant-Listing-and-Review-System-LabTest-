@@ -26,6 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             ':image_url' => $image_url,
             ':id' => $id
         ]);
+        
         header("Location: details.php?id=".$id);
         exit;
     }

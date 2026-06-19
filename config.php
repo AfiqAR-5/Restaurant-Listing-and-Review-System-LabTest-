@@ -1,7 +1,7 @@
 <?php
 $host = 'localhost';
 $dbname = 'fooddb';
-$username = 'root'; 
+$username = 'root';
 $password = '';
 
 try {

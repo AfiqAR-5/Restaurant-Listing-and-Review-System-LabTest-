@@ -8,7 +8,16 @@ $restaurant_id = $_GET['id'];
 $success_msg = '';
 $error_msg = '';
 
+$stmt = $pdo->prepare("SELECT * FROM restaurants WHERE id = :id");
+$stmt->execute([':id' => $restaurant_id]);
+$restaurant = $stmt->fetch();
+
+if (!$restaurant) {
+    die("Restaurant not found");
+}
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $restaurant_name_input = $_POST['restaurant_name'];
     $customer_name = $_POST['customer_name'];
     $email = $_POST['email'];
     $rating = $_POST['rating'];
@@ -17,11 +26,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if ($customer_name == "" || $email == "" || $review_text == "" || $rating == "") {
         $error_msg = "Please fill all fields.";
     } else if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $error_msg = "Invalid email.";
+        $error_msg = "Invalid email format.";
     } else {
         $sql = "INSERT INTO reviews (restaurant_id, customer_name, email, rating, review_text) VALUES (:restaurant_id, :customer_name, :email, :rating, :review_text)";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([':restaurant_id' => $restaurant_id, ':customer_name' => $customer_name, ':email' => $email, ':rating' => $rating, ':review_text' => $review_text]);
+        $stmt_insert = $pdo->prepare($sql);
+        $stmt_insert->execute([
+            ':restaurant_id' => $restaurant_id, 
+            ':customer_name' => $customer_name, 
+            ':email' => $email, 
+            ':rating' => $rating, 
+            ':review_text' => $review_text
+        ]);
+        
         header("Location: details.php?id=$restaurant_id&success=1");
         exit;
     }
@@ -30,10 +46,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 if (isset($_GET['success'])) {
     $success_msg = "Review submitted!";
 }
-
-$stmt = $pdo->prepare("SELECT * FROM restaurants WHERE id = :id");
-$stmt->execute([':id' => $restaurant_id]);
-$restaurant = $stmt->fetch();
 
 $stmt2 = $pdo->prepare("SELECT * FROM reviews WHERE restaurant_id = :id ORDER BY id DESC");
 $stmt2->execute([':id' => $restaurant_id]);
@@ -64,7 +76,7 @@ if (count($reviews) > 0) {
         <div class="card-body">
             <h1><?= htmlspecialchars($restaurant['name']) ?></h1>
             <p>Cuisine: <?= htmlspecialchars($restaurant['cuisine']) ?></p>
-            <p>Rating: <?= $avg > 0 ? $avg : "No ratings" ?></p>
+            <p>Rating: <?= $avg > 0 ? $avg . " / 5.0" : "No ratings yet" ?></p>
             <hr>
             <p><?= htmlspecialchars($restaurant['description']) ?></p>
             <p>Location: <?= htmlspecialchars($restaurant['location']) ?></p>
@@ -80,6 +92,10 @@ if (count($reviews) > 0) {
             <div class="card">
                 <div class="card-body">
                     <form method="POST" action="details.php?id=<?= $restaurant_id ?>" id="reviewForm">
+                        <div class="mb-3">
+                            <label>Restaurant Name</label>
+                            <input type="text" class="form-control" name="restaurant_name" value="<?= htmlspecialchars($restaurant['name']) ?>" readonly>
+                        </div>
                         <div class="mb-3">
                             <label>Name</label>
                             <input type="text" class="form-control" name="customer_name" required>
@@ -114,11 +130,14 @@ if (count($reviews) > 0) {
                 <div class="card mb-2">
                     <div class="card-body">
                         <h5><?= htmlspecialchars($r['customer_name']) ?> (<?= $r['rating'] ?>/5)</h5>
+                        <p class="text-muted small">For: <?= htmlspecialchars($restaurant['name']) ?> | <?= date('Y-m-d H:i', strtotime($r['created_at'])) ?></p>
+                        <p class="mb-1"><?= htmlspecialchars($r['email']) ?></p>
                         <p><?= htmlspecialchars($r['review_text']) ?></p>
+                        
                         <form action="delete-review.php" method="POST">
                             <input type="hidden" name="review_id" value="<?= $r['id'] ?>">
                             <input type="hidden" name="restaurant_id" value="<?= $restaurant_id ?>">
-                            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this review?');">Delete</button>
                         </form>
                     </div>
                 </div>
@@ -129,9 +148,13 @@ if (count($reviews) > 0) {
 
 <script>
 document.getElementById('reviewForm').addEventListener('submit', function (e) {
-    if (!this.checkValidity()) {
+    var name = this.elements['customer_name'].value;
+    var email = this.elements['email'].value;
+    var text = this.elements['review_text'].value;
+    
+    if (name === "" || email === "" || text === "") {
         e.preventDefault();
-        alert('Please fill out all fields correctly.');
+        alert('All fields are required.');
     }
 });
 </script>

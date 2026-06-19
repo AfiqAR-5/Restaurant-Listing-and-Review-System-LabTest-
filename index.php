@@ -5,18 +5,35 @@ $search_query = "";
 if(isset($_GET['search'])) {
     $search_query = $_GET['search'];
 }
-$cuisine_filter = isset($_GET['cuisine']) ? $_GET['cuisine'] : '';
+$cuisine_filter = "";
+if(isset($_GET['cuisine'])) {
+    $cuisine_filter = $_GET['cuisine'];
+}
+$sort = "name_asc";
+if(isset($_GET['sort'])) {
+    $sort = $_GET['sort'];
+}
 
-$sql = "SELECT * FROM restaurants WHERE 1=1";
+$sql = "SELECT r.*, COALESCE(AVG(rev.rating), 0) AS avg_rating FROM restaurants r LEFT JOIN reviews rev ON r.id = rev.restaurant_id WHERE 1=1";
 $params = [];
 
 if ($search_query != '') {
-    $sql .= " AND name LIKE :search";
+    $sql .= " AND r.name LIKE :search";
     $params[':search'] = "%$search_query%";
 }
 if ($cuisine_filter != '') {
-    $sql .= " AND cuisine = :cuisine";
+    $sql .= " AND r.cuisine = :cuisine";
     $params[':cuisine'] = $cuisine_filter;
+}
+
+$sql .= " GROUP BY r.id";
+
+if ($sort == 'rating_desc') {
+    $sql .= " ORDER BY avg_rating DESC";
+} else if ($sort == 'name_desc') {
+    $sql .= " ORDER BY r.name DESC";
+} else {
+    $sql .= " ORDER BY r.name ASC";
 }
 
 $stmt = $pdo->prepare($sql);
@@ -27,7 +44,7 @@ $cuisine_stmt = $pdo->query("SELECT DISTINCT cuisine FROM restaurants");
 $cuisines = $cuisine_stmt->fetchAll(PDO::FETCH_COLUMN);
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <title>Restaurants</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -48,11 +65,11 @@ $cuisines = $cuisine_stmt->fetchAll(PDO::FETCH_COLUMN);
 
     <div class="card mb-5">
         <div class="card-body">
-            <form method="GET" action="index.php" class="row">
-                <div class="col-md-6">
-                    <input type="text" name="search" class="form-control" placeholder="Search by restaurant name..." value="<?= htmlspecialchars($search_query) ?>">
-                </div>
+            <form method="GET" action="index.php" class="row g-2">
                 <div class="col-md-4">
+                    <input type="text" name="search" class="form-control" placeholder="Search by name..." value="<?= htmlspecialchars($search_query) ?>">
+                </div>
+                <div class="col-md-3">
                     <select name="cuisine" class="form-select">
                         <option value="">All Cuisines</option>
                         <?php foreach ($cuisines as $c) { ?>
@@ -62,8 +79,15 @@ $cuisines = $cuisine_stmt->fetchAll(PDO::FETCH_COLUMN);
                         <?php } ?>
                     </select>
                 </div>
+                <div class="col-md-3">
+                    <select name="sort" class="form-select">
+                        <option value="name_asc" <?php if($sort == 'name_asc') echo 'selected'; ?>>Name (A-Z)</option>
+                        <option value="name_desc" <?php if($sort == 'name_desc') echo 'selected'; ?>>Name (Z-A)</option>
+                        <option value="rating_desc" <?php if($sort == 'rating_desc') echo 'selected'; ?>>Rating (High to Low)</option>
+                    </select>
+                </div>
                 <div class="col-md-2">
-                    <button type="submit" class="btn btn-primary w-100">Search</button>
+                    <button type="submit" class="btn btn-primary w-100">Apply</button>
                 </div>
             </form>
         </div>
@@ -78,8 +102,9 @@ $cuisines = $cuisine_stmt->fetchAll(PDO::FETCH_COLUMN);
                         <div class="card-body">
                             <h5><?= htmlspecialchars($r['name']) ?></h5>
                             <span class="badge bg-secondary"><?= htmlspecialchars($r['cuisine']) ?></span>
-                            <p class="mt-2"><?= htmlspecialchars($r['location']) ?></p>
+                            <p class="mt-2 text-muted"><?= htmlspecialchars($r['location']) ?></p>
                             <p><?= htmlspecialchars($r['description']) ?></p>
+                            <p class="text-warning">★ <?= round($r['avg_rating'], 1) ?> / 5.0</p>
                         </div>
                         <div class="card-footer">
                             <a href="details.php?id=<?= $r['id'] ?>" class="btn btn-primary w-100">Details</a>
